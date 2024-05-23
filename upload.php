@@ -1,21 +1,29 @@
 <?php
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdf'])) {
-    if ($_FILES['pdf']['error'] === UPLOAD_ERR_OK) {
-        $uploadDir = 'uploads/';
-        $uploadFile = $uploadDir . basename($_FILES['pdf']['name']);
+include "connection.php";
+if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['pdfFile'])) {
+    $fileName = $_FILES['pdfFile']['name'];
+    $fileType = $_FILES['pdfFile']['type'];
+    $fileSize = $_FILES['pdfFile']['size'];
+    $fileContent = file_get_contents($_FILES['pdfFile']['tmp_name']);
 
-        if (move_uploaded_file($_FILES['pdf']['tmp_name'], $uploadFile)) {
-            echo "File is valid, and was successfully uploaded.\n";
-        } else {
-            echo "Failed to move uploaded file.\n";
-        }
+    // Prepare and bind
+    $stmt = $conn->prepare("INSERT INTO pdf_files (name, type, size, content) VALUES (?, ?, ?, ?)");
+    $stmt->bind_param("ssis", $fileName, $fileType, $fileSize, $fileContent);
+
+    if ($stmt->execute()) {
+        echo "File uploaded and stored in the database successfully.";
     } else {
-        echo "File upload error: " . $_FILES['pdf']['error'] . "\n";
+        echo "Error: " . $stmt->error;
     }
+
+    $stmt->close();
+} else {
+    echo "No file uploaded.";
 }
+
 ?>
 
 <form enctype="multipart/form-data" action="upload.php" method="POST">
-    <input type="file" name="pdf" />
-    <input type="submit" value="Upload PDF" />
+        <input type="file" name="pdfFile" id="pdfFile">
+        <input type="submit" value="Upload PDF" name="submit">
 </form>
