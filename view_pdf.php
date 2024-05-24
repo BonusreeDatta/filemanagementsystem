@@ -2,113 +2,162 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>View and Annotate PDF</title>
-    <!-- Ensure these script sources are correct and accessible -->
-    <script src="https://mozilla.github.io/pdf.js/build/pdf.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/4.6.0/fabric.min.js"></script>
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-        }
-        #pdf-container {
-            position: relative;
-        }
-        #pdf-canvas {
-            border: 1px solid black;
-        }
-        #annotation-layer {
-            position: absolute;
-            top: 0;
-            left: 0;
-            pointer-events: none;
-        }
-    </style>
+    <title><?php echo htmlspecialchars($pdfName, ENT_QUOTES, 'UTF-8'); ?></title>
 </head>
 <body>
-    <div id="pdf-container">
-        <canvas id="pdf-canvas"></canvas>
-        <canvas id="annotation-layer"></canvas>
-    </div>
-    <button onclick="savePDF()">Save Annotations</button>
+    <h1><?php echo htmlspecialchars($pdfName, ENT_QUOTES, 'UTF-8'); ?></h1>
+    <embed src="<?php echo htmlspecialchars($pdfPath, ENT_QUOTES, 'UTF-8'); ?>" width="100%" height="500px" />
 
-    <script>
-        const urlParams = new URLSearchParams(window.location.search);
-        const pdfId = urlParams.get('id');
-        const url = 'serve_pdf.php?id=' + pdfId;
-        console.log("PDF URL: ", url); // Debugging output
-
-        let pdfDoc = null;
-        let pageNum = 1;
-        const scale = 1.5;
-        const canvas = document.getElementById('pdf-canvas');
-        const ctx = canvas.getContext('2d');
-
-        // Initialize the annotation canvas properly
-        const annotationCanvas = new fabric.Canvas('annotation-layer', {
-            isDrawingMode: true
-        });
-
-        pdfjsLib.getDocument(url).promise.then(function(pdfDoc_) {
-            pdfDoc = pdfDoc_;
-            console.log("PDF loaded: ", pdfDoc); // Debugging output
-            renderPage(pageNum);
-        }).catch(function(error) {
-            console.error("Error loading PDF: ", error); // Debugging output
-        });
-
-        function renderPage(num) {
-            pdfDoc.getPage(num).then(function(page) {
-                const viewport = page.getViewport({ scale: scale });
-                canvas.height = viewport.height;
-                canvas.width = viewport.width;
-                annotationCanvas.setWidth(viewport.width);
-                annotationCanvas.setHeight(viewport.height);
-
-                const renderContext = {
-                    canvasContext: ctx,
-                    viewport: viewport
-                };
-                page.render(renderContext).promise.then(function() {
-                    console.log("Page rendered"); // Debugging output
-                });
-            }).catch(function(error) {
-                console.error("Error rendering page: ", error); // Debugging output
-            });
-        }
-
-        function savePDF() {
-            annotationCanvas.deactivateAll().renderAll();
-            const annotationDataUrl = annotationCanvas.toDataURL();
-            console.log("Annotation Data URL: ", annotationDataUrl); // Debugging output
-
-            fetch(annotationDataUrl)
-                .then(response => response.blob())
-                .then(annotationBlob => {
-                    console.log("Annotation Blob: ", annotationBlob); // Debugging output
-                    const formData = new FormData();
-                    formData.append('pdf_id', pdfId); // Use the dynamic ID
-                    formData.append('annotations', annotationBlob);
-
-                    fetch('save_pdf.php', {
-                        method: 'POST',
-                        body: formData
-                    }).then(response => response.json())
-                      .then(result => {
-                          console.log("Save response: ", result); // Debugging output
-                          alert(result.message);
-                      }).catch(error => {
-                          console.error("Save error: ", error); // Debugging output
-                      });
-                }).catch(error => {
-                    console.error("Blob error: ", error); // Debugging output
-                });
-        }
-    </script>
+    <form action="download_pdf.php" method="post">
+        <input type="hidden" name="path" value="<?php echo htmlspecialchars($pdfPath, ENT_QUOTES, 'UTF-8'); ?>">
+        <input type="hidden" name="name" value="<?php echo htmlspecialchars($pdfName, ENT_QUOTES, 'UTF-8'); ?>">
+        <button id="createUnderlineAnnotation" type="submit">Save PDF</button>
+    </form>
 </body>
+
+
+<script src="node_modules/annotpdf/bundles/pdfAnnotate.js"></script>
+    <script>
+        // Initialize annotation functionality after the PDF is rendered
+        const pdfViewer = document.getElementById('pdfViewer');
+        const pdfPath = "<?php echo htmlspecialchars($pdfPath, ENT_QUOTES, 'UTF-8'); ?>";
+        AnnotationFactory.loadFile(pdfPath).then((factory) => {
+            factory.createUnderlineAnnotation({
+                page: 0,
+                rect: [100, 100, 200, 200],
+                contents: "Test123",
+                author: "John",
+                color: {r: 128, g: 128, b: 128},
+                opacity: 0.5
+            });
+        });
+    </script> -->
+
+     <!-- Your PDF viewer container -->
+     <embed id="pdfViewer" src="<?php echo htmlspecialchars($pdfPath, ENT_QUOTES, 'UTF-8'); ?>" width="100%" height="500px" />
+     <button id="addTextAnnotation" type="button">Text Annotation</button>
+     <button id="download" type="button">Download</button>
+<!-- Include the annotpdf library -->
+<script src="node_modules/annotpdf/_bundles/pdfAnnotate.js"></script>
+<script>
+
+let pdfUrl = "<?php echo htmlspecialchars($pdfPath, ENT_QUOTES, 'UTF-8'); ?>" 
+                        let once = false
+                        let pdfFactory = undefined
+                        let pdfViewer = undefined
+                        let coordinates = []
+
+                        let __x_1 = 0
+                        let __y_1 = 0
+                        let doCircle = false
+                        let doSquare = false
+                        document.getElementById("content").value = "Test Content"
+                        document.getElementById("author").value = "Test Author"
+
+                        let setStatus = function (value) {
+                                document.getElementById("statusLine").innerHTML = " " + value + " "
+
+                                document.getElementById("annotationCount").innerHTML = " " + (pdfFactory.getAnnotationCount() + 1) + " "
+                        }
+
+                        let updateCoordinates = function () {
+                                let _str = coordinates.map((x) => Math.round(x)).join(",")
+                                document.getElementById("coords").innerHTML = _str
+                        }
+
+                        document.querySelector('#addFreeTextAnnotation').addEventListener('click', (evt) => {
+                                setStatus("Added FreeText Annotation")
+                                let parameters = getParameters()
+
+                                pdfFactory.createFreeTextAnnotation(pdfViewer.currentPageNumber - 1,[parameters[0], parameters[1], parameters[0] + 22, parameters[1] + 22], parameters[2], parameters[3])
+                        })
+
+    document.querySelector('#download').addEventListener('click', (evt) => {
+                                setStatus("Download")
+                                pdfFactory.download()
+                        })
+     document.querySelector('#addTextAnnotation').addEventListener('click', (evt) => {
+                                setStatus("Added Text Annotation")
+                                let parameters = getParameters()
+                                pdfFactory.createTextAnnotation(pdfViewer.currentPageNumber - 1, [parameters[0], parameters[1], parameters[0] + 22, parameters[1] + 22], parameters[2], parameters[3])
+                                coordinates = []
+                                updateCoordinates()
+                        })
+
+                        let computePageOffset = function () {
+                                let pageId = "page" + pdfViewer.currentPageNumber
+                                let pg = document.getElementById(pageId)
+
+                                var rect = pg.getBoundingClientRect(), bodyElt = document.body;
+                                return {
+                                        top: rect.top + bodyElt .scrollTop,
+                                        left: rect.left + bodyElt .scrollLeft
+                                }
+                        }
+
+                        window.onload =  function(){
+                                let pdfContainer = document.getElementById('viewerContainer')
+
+                                pdfViewer = new pdfjsViewer.PDFViewer({
+                                        container : pdfContainer
+                                })
+
+                                pdfContainer.addEventListener('click', (evt) => {
+                                        let ost = computePageOffset()
+                                        let x = evt.pageX - ost.left
+                                        let y = evt.pageY - ost.top
+
+                                        let x_y = pdfViewer._pages[pdfViewer.currentPageNumber - 1].viewport.convertToPdfPoint(x, y)
+                                        x = x_y[0]
+                                        y = x_y[1]
+
+                                        coordinates.push(x)
+                                        coordinates.push(y)
+
+                                        updateCoordinates()
+
+                                        if (doCircle) {
+                                                setStatus("Select the second point")
+
+                                                if (coordinates.length == 4) {
+                                                        setStatus("Added circle annotation")
+                                                        doCircle = false
+                                                        let parameters = getParameters()
+                                                        pdfFactory.createCircleAnnotation(pdfViewer.currentPageNumber - 1, coordinates.slice(), parameters[2], parameters[3])
+
+                                                        coordinates = []
+                                                }
+                                        }
+
+                                        if (doSquare) {
+                                                setStatus("Select the second point")
+
+                                                if (coordinates.length == 4) {
+                                                        setStatus("Added square annotation")
+                                                        doCircle = false
+                                                        let parameters = getParameters()
+                                                        pdfFactory.createSquareAnnotation(pdfViewer.currentPageNumber - 1, coordinates.slice(), parameters[2], parameters[3])
+
+                                                        coordinates = []
+                                                }
+                                        }
+                                })
+
+                                let loadingTask = pdfjsLib.getDocument({
+                                        url : pdfUrl
+                                })
+                                loadingTask.promise.then((pdfDocument) => {
+                                        pdfDocument.getData().then((data) => {
+                                                pdfFactory = new pdfAnnotate.AnnotationFactory(data)
+                                        })
+                                        pdfViewer.setDocument(pdfDocument)
+                                        setTimeout(() => {
+                                                pdfViewer.currentScaleValue = 'page-width'
+                                        }, 1500)
+                                })
+                        }
+</script>
+</body>
+
+
 </html>

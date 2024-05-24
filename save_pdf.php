@@ -1,53 +1,49 @@
 <?php
-include 'connection.php'
-if ($_SERVER['REQUEST_METHOD'] == 'POST' && isset($_FILES['annotations'])) {
-    $id = intval($_POST['pdf_id']);
-    $annotations = file_get_contents($_FILES['annotations']['tmp_name']);
+include "connection.php";
 
-    // Debugging output
-    echo "<pre>";
-    var_dump($id);
-    var_dump($annotations);
-    echo "</pre>";
-    exit();
+if ($_SERVER["REQUEST_METHOD"] == "POST") {
+    // Check if all necessary data is provided
+    if (isset($_POST['id']) && isset($_POST['name']) && isset($_POST['content'])) {
+        // Retrieve and sanitize data from the form
+        $id = mysqli_real_escape_string($conn, $_POST['id']);
+        $pdfName = mysqli_real_escape_string($conn, $_POST['name']);
+        $pdfContent = base64_decode($_POST['content']);
 
-    // Retrieve the original PDF
-    $stmt = $conn->prepare("SELECT content FROM pdf_files WHERE id = ?");
-    $stmt->bind_param("i", $id);
-    $stmt->execute();
-    $stmt->bind_result($content);
-    $stmt->fetch();
-    $stmt->close();
+        // // Fetch the current content of the PDF from the database
+        // $sql_fetch = "SELECT content FROM pdf_files WHERE id = $id";
+        // $result_fetch = $conn->query($sql_fetch);
+        // if ($result_fetch->num_rows > 0) {
+        //     $row_fetch = $result_fetch->fetch_assoc();
+        //     $currentContent = $row_fetch['content'];
+        // } else {
+        //     $message = "PDF not found.";
+        // }
 
-    // Merge the original PDF with annotations
-    $pdf = new \setasign\Fpdi\Fpdi();
-    $pageCount = $pdf->setSourceFile(StreamReader::createByString($content));
-    for ($pageNo = 1; $pageNo <= $pageCount; $pageNo++) {
-        $templateId = $pdf->importPage($pageNo);
-        $pdf->AddPage();
-        $pdf->useTemplate($templateId, ['adjustPageSize' => true]);
+        // Check if the content has been modified
 
-        if ($pageNo == 1) { // Assume annotations are for the first page
-            $pdf->Image($annotations, 0, 0, $pdf->GetPageWidth(), $pdf->GetPageHeight());
+        $sql = "UPDATE pdf_files SET content = ? WHERE id = ?";
+        $stmt = $conn->prepare($sql);
+        var_dump($pdfContent);
+        // Bind parameters
+        $stmt->bind_param("si", $pdfContent, $id);
+        var_dump($stmt);
+        die();
+        // Execute the statement
+        if ($stmt->execute()) {
+            echo "PDF saved successfully.";
+            // echo "Decoded PDF content: ";
+            // var_dump($pdfContent);
+        } else {
+            echo "Error updating PDF: " . $stmt->error;
         }
-    }
 
-    $newContent = $pdf->Output('S');
-
-    // Save the modified PDF back to the database
-    $stmt = $conn->prepare("UPDATE pdf_files SET content = ? WHERE id = ?");
-    $stmt->bind_param("bi", $newContent, $id);
-
-    if ($stmt->execute()) {
-        echo json_encode(['message' => 'PDF saved successfully']);
+        // Close the statement
+        $stmt->close();
     } else {
-        echo json_encode(['message' => 'Failed to save PDF']);
+        echo "Missing data.";
     }
-
-    $stmt->close();
 } else {
-    echo json_encode(['message' => 'No annotations provided']);
+    echo "Invalid request.";
 }
 
 $conn->close();
-?>
