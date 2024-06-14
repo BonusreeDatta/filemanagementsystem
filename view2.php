@@ -31,49 +31,88 @@ $conn->close();
 <head>
     <meta charset="UTF-8">
     <title><?php echo htmlspecialchars($pdfName, ENT_QUOTES, 'UTF-8'); ?></title>
-    <!-- Include PDF.js library -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.12.313/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.5.207/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.5.207/pdf_viewer.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.5.207/pdf_viewer.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-annotate.js/2.1.0/pdf-annotate.min.js"></script>
+    <style>
+        #viewerContainer {
+            width: 100%;
+            height: 500px;
+            overflow: auto;
+        }
+        #pdfViewer {
+            width: 100%;
+        }
+    </style>
 </head>
 <body>
     <h1><?php echo htmlspecialchars($pdfName, ENT_QUOTES, 'UTF-8'); ?></h1>
-    <!-- PDF Viewer Canvas -->
-    <canvas id="pdfViewer" style="border:1px solid black;"></canvas>
-
-    <!-- Form to submit PDF -->
-    <form action="download_pdf.php" method="post">
-        <input type="hidden" name="path" value="<?php echo htmlspecialchars($pdfPath, ENT_QUOTES, 'UTF-8'); ?>">
-        <input type="hidden" name="name" value="<?php echo htmlspecialchars($pdfName, ENT_QUOTES, 'UTF-8'); ?>">
-        <button id="createUnderlineAnnotation" type="submit">Save PDF</button>
-    </form>
-
+    <div id="viewerContainer">
+        <div id="pdfViewer"></div>
+    </div>
+    <button id="addTextAnnotation" type="button">Text Annotation</button>
+    <button id="download" type="button">Save Annotations</button>
     <script>
-        // URL of the PDF file
         const pdfUrl = "<?php echo htmlspecialchars($pdfPath, ENT_QUOTES, 'UTF-8'); ?>";
 
-        // Initialize PDF.js
-        pdfjsLib.getDocument(pdfUrl).promise.then(pdf => {
-            // Fetch the first page of the PDF
-            return pdf.getPage(1);
-        }).then(page => {
-            // Set canvas element
-            const canvas = document.getElementById('pdfViewer');
-            const context = canvas.getContext('2d');
+        const initPDFViewer = async () => {
+            const pdfjsLib = window['pdfjs-dist/build/pdf'];
+            const pdfjsViewer = window['pdfjs-dist/web/pdf_viewer'];
 
-            // Set viewport
-            const viewport = page.getViewport({ scale: 1.5 });
+            const loadingTask = pdfjsLib.getDocument(pdfUrl);
+            const pdfDocument = await loadingTask.promise;
 
-            // Set canvas size
-            canvas.height = viewport.height;
-            canvas.width = viewport.width;
-
-            // Render PDF page into canvas
-            page.render({
-                canvasContext: context,
-                viewport: viewport
+            const container = document.getElementById('viewerContainer');
+            const eventBus = new pdfjsViewer.EventBus();
+            const pdfViewer = new pdfjsViewer.PDFViewer({
+                container: container,
+                eventBus: eventBus
             });
-        }).catch(error => {
-            console.error('Error loading PDF:', error);
+
+            pdfViewer.setDocument(pdfDocument);
+
+            eventBus.on('pagesinit', function() {
+                pdfViewer.currentScaleValue = 'page-width';
+            });
+
+            pdfDocument.getData().then((data) => {
+                pdfAnnotate.init({
+                    documentId: 'pdfViewer',
+                    pdfDocument: pdfDocument,
+                    data: data
+                });
+            });
+        };
+
+        document.getElementById('addTextAnnotation').addEventListener('click', () => {
+            pdfAnnotate.getStoreAdapter().addAnnotation(0, {
+                type: 'textbox',
+                page: 0,
+                size: 12,
+                color: '000000',
+                content: 'Sample Text Annotation',
+                position: { x: 100, y: 100 }
+            });
         });
+
+        document.getElementById('download').addEventListener('click', async () => {
+            const data = await pdfAnnotate.getStoreAdapter().getDocument();
+            const blob = new Blob([data], { type: 'application/pdf' });
+
+            const formData = new FormData();
+            formData.append('annotated_pdf', blob, 'annotated.pdf');
+
+            fetch('upload_pdf.php', {
+                method: 'POST',
+                body: formData
+            })
+            .then(response => response.text())
+            .then(result => alert(result))
+            .catch(error => console.error('Error:', error));
+        });
+
+        window.onload = initPDFViewer;
     </script>
 </body>
 </html>

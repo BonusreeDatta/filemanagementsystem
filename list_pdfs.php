@@ -39,7 +39,7 @@ $result = $conn->query($sql);
                     echo "<tr>";
                     echo "<td>" . $row['id'] . "</td>";
                     echo "<td>" . htmlspecialchars($row['name']) . "</td>";
-                    echo "<td><a href='view2.php?id=" . $row['id'] . "' target='_blank'>View</a></td>";
+                    echo "<td><a href='view_pdf1.php?id=" . $row['id'] . "' target='_blank'>View</a></td>";
                     echo "</tr>";
                 }
             } else {
